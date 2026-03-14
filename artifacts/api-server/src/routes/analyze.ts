@@ -5,7 +5,6 @@ import { promisify } from "util";
 import path from "path";
 import fs from "fs";
 import os from "os";
-
 const execFileAsync = promisify(execFile);
 
 const router: IRouter = Router();
@@ -25,16 +24,69 @@ const upload = multer({
   },
 });
 
-const SCRIPT_PATH = path.resolve(
-  import.meta.dirname,
-  "..",
-  "..",
-  "scripts",
-  "analyze_pcap.py"
-);
+function resolveScriptPath(): string {
+  const candidates: string[] = [];
+
+  if (typeof import.meta.dirname === "string") {
+    candidates.push(
+      path.resolve(import.meta.dirname, "..", "..", "scripts", "analyze_pcap.py"),
+      path.resolve(import.meta.dirname, "..", "scripts", "analyze_pcap.py"),
+    );
+  }
+
+  if (typeof __dirname === "string") {
+    candidates.push(
+      path.resolve(__dirname, "scripts", "analyze_pcap.py"),
+      path.resolve(__dirname, "..", "scripts", "analyze_pcap.py"),
+    );
+  }
+
+  candidates.push(
+    path.resolve(process.cwd(), "artifacts", "api-server", "scripts", "analyze_pcap.py"),
+    path.resolve(process.cwd(), "scripts", "analyze_pcap.py"),
+  );
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  return candidates[0];
+}
+
+const SCRIPT_PATH = resolveScriptPath();
+
+interface ExecError extends Error {
+  stdout?: string;
+  stderr?: string;
+  killed?: boolean;
+  code?: number | null;
+}
+
+interface PythonErrorOutput {
+  error: string;
+}
+
+interface PacketFeature {
+  src_ip: string;
+  dst_ip: string;
+  packet_size: number;
+  ttl: number;
+  protocol: number;
+  time_delta: number;
+}
+
+function isPythonErrorOutput(value: unknown): value is PythonErrorOutput {
+  return typeof value === "object" && value !== null && "error" in value && typeof (value as PythonErrorOutput).error === "string";
+}
+
+function isPacketFeatureArray(value: unknown): value is PacketFeature[] {
+  return Array.isArray(value);
+}
 
 function handleUpload(req: Request, res: Response, next: NextFunction): void {
-  upload.single("file")(req, res, (err: any) => {
+  upload.single("file")(req, res, (err: unknown) => {
     if (err instanceof MulterError) {
       if (err.code === "LIMIT_FILE_SIZE") {
         res.status(413).json({ error: `File too large. Maximum size is ${MAX_FILE_SIZE / 1024 / 1024}MB.` });
@@ -43,8 +95,12 @@ function handleUpload(req: Request, res: Response, next: NextFunction): void {
       res.status(400).json({ error: err.message });
       return;
     }
+    if (err instanceof Error) {
+      res.status(400).json({ error: err.message });
+      return;
+    }
     if (err) {
-      res.status(400).json({ error: err.message || "File upload failed" });
+      res.status(400).json({ error: "File upload failed" });
       return;
     }
     next();
@@ -69,7 +125,7 @@ router.post("/analyze", handleUpload, async (req, res): Promise<void> => {
       console.error("Python stderr:", stderr);
     }
 
-    let parsed: any;
+    let parsed: unknown;
     try {
       parsed = JSON.parse(stdout);
     } catch {
@@ -77,12 +133,12 @@ router.post("/analyze", handleUpload, async (req, res): Promise<void> => {
       return;
     }
 
-    if (parsed.error) {
+    if (isPythonErrorOutput(parsed)) {
       res.status(400).json({ error: parsed.error });
       return;
     }
 
-    if (!Array.isArray(parsed)) {
+    if (!isPacketFeatureArray(parsed)) {
       res.status(500).json({ error: "Unexpected analysis output format." });
       return;
     }
@@ -91,11 +147,13 @@ router.post("/analyze", handleUpload, async (req, res): Promise<void> => {
       total_packets: parsed.length,
       features: parsed,
     });
-  } catch (err: any) {
-    if (err.stdout) {
+  } catch (err: unknown) {
+    const execErr = err as ExecError;
+
+    if (execErr.stdout) {
       try {
-        const errorOutput = JSON.parse(err.stdout);
-        if (errorOutput.error) {
+        const errorOutput: unknown = JSON.parse(execErr.stdout);
+        if (isPythonErrorOutput(errorOutput)) {
           res.status(400).json({ error: errorOutput.error });
           return;
         }
@@ -104,12 +162,12 @@ router.post("/analyze", handleUpload, async (req, res): Promise<void> => {
       }
     }
 
-    if (err.killed) {
+    if (execErr.killed) {
       res.status(504).json({ error: "Analysis timed out. The file may be too large." });
       return;
     }
 
-    console.error("Analysis error:", err.message);
+    console.error("Analysis error:", execErr.message);
     res.status(500).json({ error: "Analysis failed. Please ensure the file is a valid packet capture." });
   } finally {
     fs.unlink(filePath, () => {});

@@ -77,7 +77,7 @@ export default function Home() {
     const url = URL.createObjectURL(blob)
     const link = document.createElement("a")
     link.href = url
-    link.download = `network_features_${new Date().getTime()}.csv`
+    link.download = "features.csv"
     link.click()
     URL.revokeObjectURL(url)
   }

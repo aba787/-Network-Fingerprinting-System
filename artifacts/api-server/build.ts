@@ -1,7 +1,7 @@
 import path from "path";
 import { fileURLToPath } from "url";
 import { build as esbuild } from "esbuild";
-import { rm, readFile } from "fs/promises";
+import { rm, readFile, cp, mkdir } from "fs/promises";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -67,6 +67,12 @@ async function buildAll() {
     external: externals,
     logLevel: "info",
   });
+
+  const scriptsDir = path.resolve(__dirname, "scripts");
+  const distScriptsDir = path.resolve(distDir, "scripts");
+  await mkdir(distScriptsDir, { recursive: true });
+  await cp(scriptsDir, distScriptsDir, { recursive: true });
+  console.log("copied scripts/ to dist/scripts/");
 }
 
 buildAll().catch((err) => {

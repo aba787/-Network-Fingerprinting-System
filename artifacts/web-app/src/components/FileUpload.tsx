@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react'
-import { useDropzone } from 'react-dropzone'
+import { useDropzone, type FileRejection } from 'react-dropzone'
 import { UploadCloud, File, X, AlertCircle } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn, formatBytes } from '@/lib/utils'
@@ -13,7 +13,7 @@ export function FileUpload({ onFileSelect, isAnalyzing }: FileUploadProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  const onDrop = useCallback((acceptedFiles: File[], rejectedFiles: any[]) => {
+  const onDrop = useCallback((acceptedFiles: File[], rejectedFiles: FileRejection[]) => {
     if (rejectedFiles.length > 0) {
       setError("Please upload a valid .pcap or .pcapng file.")
       return
