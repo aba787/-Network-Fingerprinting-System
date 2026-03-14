@@ -10,6 +10,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: analyze
+    description: Packet analysis operations
 paths:
   /healthz:
     get:
@@ -24,6 +26,43 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /analyze:
+    post:
+      operationId: analyzePcap
+      tags: [analyze]
+      summary: Analyze a pcap file
+      description: Upload a pcap/pcapng file and extract packet features
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+              required:
+                - file
+      responses:
+        "200":
+          description: Analysis results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalyzeResult"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 components:
   schemas:
     HealthStatus:
@@ -33,4 +72,44 @@ components:
           type: string
       required:
         - status
-
+    PacketFeature:
+      type: object
+      properties:
+        src_ip:
+          type: string
+        dst_ip:
+          type: string
+        packet_size:
+          type: integer
+        ttl:
+          type: integer
+        protocol:
+          type: integer
+        time_delta:
+          type: number
+      required:
+        - src_ip
+        - dst_ip
+        - packet_size
+        - ttl
+        - protocol
+        - time_delta
+    AnalyzeResult:
+      type: object
+      properties:
+        total_packets:
+          type: integer
+        features:
+          type: array
+          items:
+            $ref: "#/components/schemas/PacketFeature"
+      required:
+        - total_packets
+        - features
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error

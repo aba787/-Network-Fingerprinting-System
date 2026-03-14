@@ -8,3 +8,25 @@
 export interface HealthStatus {
   status: string;
 }
+
+export interface PacketFeature {
+  src_ip: string;
+  dst_ip: string;
+  packet_size: number;
+  ttl: number;
+  protocol: number;
+  time_delta: number;
+}
+
+export interface AnalyzeResult {
+  total_packets: number;
+  features: PacketFeature[];
+}
+
+export interface ErrorResponse {
+  error: string;
+}
+
+export type AnalyzePcapBody = {
+  file: Blob;
+};

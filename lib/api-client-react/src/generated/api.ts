@@ -5,18 +5,26 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import type {
+  MutationFunction,
   QueryFunction,
   QueryKey,
+  UseMutationOptions,
+  UseMutationResult,
   UseQueryOptions,
   UseQueryResult,
 } from "@tanstack/react-query";
 
-import type { HealthStatus } from "./api.schemas";
+import type {
+  AnalyzePcapBody,
+  AnalyzeResult,
+  ErrorResponse,
+  HealthStatus,
+} from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
-import type { ErrorType } from "../custom-fetch";
+import type { ErrorType, BodyType } from "../custom-fetch";
 
 type AwaitedInput<T> = PromiseLike<T> | T;
 
@@ -99,3 +107,92 @@ export function useHealthCheck<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * Upload a pcap/pcapng file and extract packet features
+ * @summary Analyze a pcap file
+ */
+export const getAnalyzePcapUrl = () => {
+  return `/api/analyze`;
+};
+
+export const analyzePcap = async (
+  analyzePcapBody: AnalyzePcapBody,
+  options?: RequestInit,
+): Promise<AnalyzeResult> => {
+  const formData = new FormData();
+  formData.append(`file`, analyzePcapBody.file);
+
+  return customFetch<AnalyzeResult>(getAnalyzePcapUrl(), {
+    ...options,
+    method: "POST",
+    body: formData,
+  });
+};
+
+export const getAnalyzePcapMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof analyzePcap>>,
+    TError,
+    { data: BodyType<AnalyzePcapBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof analyzePcap>>,
+  TError,
+  { data: BodyType<AnalyzePcapBody> },
+  TContext
+> => {
+  const mutationKey = ["analyzePcap"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof analyzePcap>>,
+    { data: BodyType<AnalyzePcapBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return analyzePcap(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AnalyzePcapMutationResult = NonNullable<
+  Awaited<ReturnType<typeof analyzePcap>>
+>;
+export type AnalyzePcapMutationBody = BodyType<AnalyzePcapBody>;
+export type AnalyzePcapMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Analyze a pcap file
+ */
+export const useAnalyzePcap = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof analyzePcap>>,
+    TError,
+    { data: BodyType<AnalyzePcapBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof analyzePcap>>,
+  TError,
+  { data: BodyType<AnalyzePcapBody> },
+  TContext
+> => {
+  return useMutation(getAnalyzePcapMutationOptions(options));
+};

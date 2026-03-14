@@ -14,3 +14,25 @@ import * as zod from "zod";
 export const HealthCheckResponse = zod.object({
   status: zod.string(),
 });
+
+/**
+ * Upload a pcap/pcapng file and extract packet features
+ * @summary Analyze a pcap file
+ */
+export const AnalyzePcapBody = zod.object({
+  file: zod.instanceof(File),
+});
+
+export const AnalyzePcapResponse = zod.object({
+  total_packets: zod.number(),
+  features: zod.array(
+    zod.object({
+      src_ip: zod.string(),
+      dst_ip: zod.string(),
+      packet_size: zod.number(),
+      ttl: zod.number(),
+      protocol: zod.number(),
+      time_delta: zod.number(),
+    }),
+  ),
+});

@@ -1,0 +1,14 @@
+packages:
+  "framer-motion": "For premium entry and interaction animations in the UI"
+  "clsx": "Utility for constructing className strings conditionally"
+  "tailwind-merge": "Utility function to efficiently merge Tailwind CSS classes"
+
+images:
+  - path: "artifacts/web-app/public/images/cyber-bg.png"
+    description: "Dark, abstract cybersecurity background with glowing cyan and emerald geometric lines, subtle data nodes, minimal and professional, low contrast, perfect for a dark mode hero section"
+    aspect_ratio: "16:9"
+
+notes:
+  - The app enforces a dark mode, professional cybersecurity aesthetic.
+  - Using generated useAnalyzePcap hook from @workspace/api-client-react.
+  - CSV export is handled entirely client-side based on the API response.
