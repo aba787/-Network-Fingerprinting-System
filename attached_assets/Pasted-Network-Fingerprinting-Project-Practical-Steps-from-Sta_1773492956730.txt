@@ -1,0 +1,246 @@
+Network Fingerprinting Project
+Practical Steps from Start to Finish
+
+This guide explains how to capture network traffic and analyze it using Python to extract device behavior features.
+
+Part 1 — Capture Network Traffic
+
+First we must collect real network packets from the device.
+
+Install the tool
+
+Install:
+
+Wireshark
+
+During installation make sure Npcap is installed (Wireshark will ask for it).
+
+Npcap allows the computer to capture network packets.
+
+Step 1 — Open Wireshark
+
+Launch Wireshark.
+
+You will see a list of network interfaces such as:
+
+Wi-Fi
+
+Ethernet
+
+VPN adapters
+
+Loopback adapters
+
+Choose the interface that your computer uses for internet access.
+
+Usually it will be:
+
+Wi-Fi
+
+Step 2 — Start Capturing Traffic
+
+Double-click the Wi-Fi interface.
+
+Wireshark will start capturing packets.
+
+You will see many rows appearing quickly such as:
+
+Source        Destination      Protocol
+192.168.x.x   8.8.8.8          DNS
+192.168.x.x   142.250.x.x      TCP
+
+This means packets are being captured successfully.
+
+Step 3 — Generate Network Activity
+
+Now create normal network activity from the device.
+
+Open some websites like:
+
+google.com
+youtube.com
+wikipedia.org
+
+You can also generate traffic using the command prompt:
+
+ping 8.8.8.8 -n 20
+
+Let the capture run for about 1 minute.
+
+This traffic represents the normal behavior of the device.
+
+Step 4 — Stop the Capture
+
+Return to Wireshark.
+
+Click the red Stop button.
+
+Now Wireshark has recorded the network packets.
+
+Step 5 — Save the Capture File
+
+Save the captured packets.
+
+Go to:
+
+File → Save As
+
+Save the file as:
+
+traffic.pcap
+
+Example folder structure:
+
+network-fingerprinting/
+   traffic.pcap
+
+This file contains all captured packets.
+
+Part 2 — Analyze the Traffic in Python
+
+Now we analyze the traffic using Python.
+
+We will use:
+
+Python
+
+Replit
+
+Step 6 — Create a Replit Project
+
+Go to Replit.
+
+Create a new Python project.
+
+Step 7 — Upload the Packet File
+
+Upload the file:
+
+traffic.pcap
+
+into your Replit project.
+
+Your project should look like this:
+
+main.py
+traffic.pcap
+Step 8 — Install Required Libraries
+
+Open the Shell in Replit.
+
+Install the required libraries:
+
+pip install scapy pandas
+
+These libraries will allow Python to read network packets and process data.
+
+Step 9 — Python Code to Extract Features
+
+Create a Python file or edit main.py and add the following code:
+
+from scapy.all import rdpcap, IP
+import pandas as pd
+
+packets = rdpcap("traffic.pcap")
+
+data = []
+prev_time = None
+
+for p in packets:
+    if IP in p:
+        current_time = float(p.time)
+        delta = 0 if prev_time is None else current_time - prev_time
+        prev_time = current_time
+
+        protocol = p[IP].proto
+        ttl = p[IP].ttl
+        size = len(p)
+        src = p[IP].src
+        dst = p[IP].dst
+
+        data.append({
+            "src_ip": src,
+            "dst_ip": dst,
+            "packet_size": size,
+            "ttl": ttl,
+            "protocol": protocol,
+            "time_delta": delta
+        })
+
+df = pd.DataFrame(data)
+
+print("Number of packets:", len(df))
+print(df.head())
+
+df.to_csv("features.csv", index=False)
+print("features.csv file created")
+Step 10 — Run the Code
+
+Run the program.
+
+The script will:
+
+Read the file traffic.pcap
+
+Extract important packet information
+
+Save the extracted features
+
+Extracted Network Features
+
+The code extracts the following information:
+
+Feature	Description
+src_ip	Source device IP address
+dst_ip	Destination IP address
+packet_size	Size of each packet
+ttl	Time To Live value
+protocol	Network protocol used
+time_delta	Time difference between packets
+
+These values represent device behavior patterns.
+
+Step 11 — Generated Output File
+
+After running the script a file will be created:
+
+features.csv
+
+Example project structure:
+
+network-fingerprinting/
+
+traffic.pcap
+features.csv
+main.py
+
+This file contains structured packet data that can be used for fingerprinting.
+
+Step 12 — Filter Data for a Specific Device
+
+If you want to analyze a specific device, filter the dataset by IP address.
+
+Example:
+
+target_ip = "192.168.1.5"
+
+device_df = df[(df["src_ip"] == target_ip) | (df["dst_ip"] == target_ip)]
+
+print(device_df.head())
+print("Number of packets for this device:", len(device_df))
+
+This allows you to isolate the behavior of a specific device.
+
+Final Result of This Stage
+
+You have successfully completed:
+
+Capturing network traffic
+
+Saving it as traffic.pcap
+
+Extracting network features
+
+Creating a dataset (features.csv)
+
+This dataset is the first step of Network Fingerprinting.
