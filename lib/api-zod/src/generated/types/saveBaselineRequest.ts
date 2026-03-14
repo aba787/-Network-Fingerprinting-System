@@ -6,10 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { DeviceFingerprint } from "./deviceFingerprint";
-import type { PacketFeature } from "./packetFeature";
 
-export interface AnalyzeResult {
-  total_packets: number;
-  features: PacketFeature[];
-  fingerprints: DeviceFingerprint[];
+export interface SaveBaselineRequest {
+  ip: string;
+  label?: string;
+  fingerprint: DeviceFingerprint;
 }

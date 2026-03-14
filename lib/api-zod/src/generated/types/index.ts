@@ -8,6 +8,14 @@
 
 export * from "./analyzePcapBody";
 export * from "./analyzeResult";
+export * from "./baselineRecord";
+export * from "./compareFingerprintBody";
+export * from "./compareResult";
+export * from "./detectionVerdict";
+export * from "./deviceComparison";
+export * from "./deviceFingerprint";
+export * from "./deviceFingerprintProtocolDistribution";
 export * from "./errorResponse";
 export * from "./healthStatus";
 export * from "./packetFeature";
+export * from "./saveBaselineRequest";

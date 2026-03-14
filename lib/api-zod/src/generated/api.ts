@@ -16,7 +16,7 @@ export const HealthCheckResponse = zod.object({
 });
 
 /**
- * Upload a pcap/pcapng file and extract packet features
+ * Upload a pcap/pcapng file and extract packet features and per-device fingerprints
  * @summary Analyze a pcap file
  */
 export const AnalyzePcapBody = zod.object({
@@ -33,6 +33,134 @@ export const AnalyzePcapResponse = zod.object({
       ttl: zod.number(),
       protocol: zod.number(),
       time_delta: zod.number(),
+    }),
+  ),
+  fingerprints: zod.array(
+    zod.object({
+      ip: zod.string(),
+      packet_count: zod.number(),
+      avg_packet_size: zod.number(),
+      std_packet_size: zod.number(),
+      avg_ttl: zod.number(),
+      std_ttl: zod.number(),
+      avg_time_delta: zod.number(),
+      std_time_delta: zod.number(),
+      protocol_distribution: zod.record(zod.string(), zod.number()),
+      unique_destinations: zod.number(),
+    }),
+  ),
+});
+
+/**
+ * Returns all saved device baseline profiles
+ * @summary List saved baselines
+ */
+export const ListBaselinesResponseItem = zod.object({
+  id: zod.number(),
+  ip: zod.string(),
+  label: zod.string().nullish(),
+  fingerprint: zod.object({
+    ip: zod.string(),
+    packet_count: zod.number(),
+    avg_packet_size: zod.number(),
+    std_packet_size: zod.number(),
+    avg_ttl: zod.number(),
+    std_ttl: zod.number(),
+    avg_time_delta: zod.number(),
+    std_time_delta: zod.number(),
+    protocol_distribution: zod.record(zod.string(), zod.number()),
+    unique_destinations: zod.number(),
+  }),
+  created_at: zod.date(),
+});
+export const ListBaselinesResponse = zod.array(ListBaselinesResponseItem);
+
+/**
+ * Save a device fingerprint as a named baseline for future comparison
+ * @summary Save a device baseline
+ */
+export const SaveBaselineBody = zod.object({
+  ip: zod.string(),
+  label: zod.string().optional(),
+  fingerprint: zod.object({
+    ip: zod.string(),
+    packet_count: zod.number(),
+    avg_packet_size: zod.number(),
+    std_packet_size: zod.number(),
+    avg_ttl: zod.number(),
+    std_ttl: zod.number(),
+    avg_time_delta: zod.number(),
+    std_time_delta: zod.number(),
+    protocol_distribution: zod.record(zod.string(), zod.number()),
+    unique_destinations: zod.number(),
+  }),
+});
+
+/**
+ * Remove a saved device baseline by ID
+ * @summary Delete a baseline
+ */
+export const DeleteBaselineParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const DeleteBaselineResponse = zod.object({
+  error: zod.string(),
+});
+
+/**
+ * Upload a pcap/pcapng file, build fingerprints, and compare each device against its saved baseline to detect anomalies
+ * @summary Compare pcap against saved baselines
+ */
+export const CompareFingerprintBody = zod.object({
+  file: zod.instanceof(File),
+});
+
+export const CompareFingerprintResponse = zod.object({
+  total_packets: zod.number(),
+  comparisons: zod.array(
+    zod.object({
+      ip: zod.string(),
+      verdict: zod.enum([
+        "Normal",
+        "Suspicious",
+        "Possible Spoofing",
+        "No Baseline",
+      ]),
+      similarity_score: zod
+        .number()
+        .nullable()
+        .describe("Overall similarity percentage (0-100)"),
+      baseline_label: zod.string().nullable(),
+      current_fingerprint: zod.object({
+        ip: zod.string(),
+        packet_count: zod.number(),
+        avg_packet_size: zod.number(),
+        std_packet_size: zod.number(),
+        avg_ttl: zod.number(),
+        std_ttl: zod.number(),
+        avg_time_delta: zod.number(),
+        std_time_delta: zod.number(),
+        protocol_distribution: zod.record(zod.string(), zod.number()),
+        unique_destinations: zod.number(),
+      }),
+      baseline_fingerprint: zod
+        .object({
+          ip: zod.string(),
+          packet_count: zod.number(),
+          avg_packet_size: zod.number(),
+          std_packet_size: zod.number(),
+          avg_ttl: zod.number(),
+          std_ttl: zod.number(),
+          avg_time_delta: zod.number(),
+          std_time_delta: zod.number(),
+          protocol_distribution: zod.record(zod.string(), zod.number()),
+          unique_destinations: zod.number(),
+        })
+        .nullable(),
+      deviations: zod
+        .array(zod.string())
+        .describe("Human-readable list of detected deviations"),
     }),
   ),
 });

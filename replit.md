@@ -118,4 +118,21 @@ Utility scripts package. Each script is a `.ts` file in `src/` with a correspond
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/api/healthz` | Health check |
-| POST | `/api/analyze` | Upload pcap/pcapng file for packet analysis |
+| POST | `/api/analyze` | Upload pcap/pcapng → returns raw packet features + per-device fingerprints |
+| GET | `/api/fingerprint/baselines` | List all saved device baselines |
+| POST | `/api/fingerprint/baselines` | Save a device fingerprint as a named baseline |
+| DELETE | `/api/fingerprint/baselines/:id` | Delete a saved baseline |
+| POST | `/api/fingerprint/compare` | Upload pcap → compare each device against saved baseline, return verdict |
+
+## Detection Algorithm
+
+Similarity score = weighted average of three metrics:
+- **TTL similarity** (40%) — deviation from baseline avg TTL, normalized over a 64-unit scale
+- **Protocol distribution** (30%) — cosine similarity of protocol percentage distributions  
+- **Packet size similarity** (30%) — relative deviation of average packet size
+
+Verdicts:
+- **Normal** — similarity ≥ 90%
+- **Suspicious** — similarity 70–89%
+- **Possible Spoofing** — similarity < 70%
+- **No Baseline** — no saved profile exists for this device IP

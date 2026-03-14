@@ -12,6 +12,8 @@ tags:
     description: Health operations
   - name: analyze
     description: Packet analysis operations
+  - name: fingerprint
+    description: Device fingerprinting and baseline operations
 paths:
   /healthz:
     get:
@@ -31,7 +33,7 @@ paths:
       operationId: analyzePcap
       tags: [analyze]
       summary: Analyze a pcap file
-      description: Upload a pcap/pcapng file and extract packet features
+      description: Upload a pcap/pcapng file and extract packet features and per-device fingerprints
       requestBody:
         required: true
         content:
@@ -51,6 +53,107 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AnalyzeResult"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /fingerprint/baselines:
+    get:
+      operationId: listBaselines
+      tags: [fingerprint]
+      summary: List saved baselines
+      description: Returns all saved device baseline profiles
+      responses:
+        "200":
+          description: List of baselines
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/BaselineRecord"
+    post:
+      operationId: saveBaseline
+      tags: [fingerprint]
+      summary: Save a device baseline
+      description: Save a device fingerprint as a named baseline for future comparison
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SaveBaselineRequest"
+      responses:
+        "201":
+          description: Baseline saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BaselineRecord"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /fingerprint/baselines/{id}:
+    delete:
+      operationId: deleteBaseline
+      tags: [fingerprint]
+      summary: Delete a baseline
+      description: Remove a saved device baseline by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Baseline deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /fingerprint/compare:
+    post:
+      operationId: compareFingerprint
+      tags: [fingerprint]
+      summary: Compare pcap against saved baselines
+      description: Upload a pcap/pcapng file, build fingerprints, and compare each device against its saved baseline to detect anomalies
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+              required:
+                - file
+      responses:
+        "200":
+          description: Comparison results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompareResult"
         "400":
           description: Bad request
           content:
@@ -94,6 +197,42 @@ components:
         - ttl
         - protocol
         - time_delta
+    DeviceFingerprint:
+      type: object
+      properties:
+        ip:
+          type: string
+        packet_count:
+          type: integer
+        avg_packet_size:
+          type: number
+        std_packet_size:
+          type: number
+        avg_ttl:
+          type: number
+        std_ttl:
+          type: number
+        avg_time_delta:
+          type: number
+        std_time_delta:
+          type: number
+        protocol_distribution:
+          type: object
+          additionalProperties:
+            type: number
+        unique_destinations:
+          type: integer
+      required:
+        - ip
+        - packet_count
+        - avg_packet_size
+        - std_packet_size
+        - avg_ttl
+        - std_ttl
+        - avg_time_delta
+        - std_time_delta
+        - protocol_distribution
+        - unique_destinations
     AnalyzeResult:
       type: object
       properties:
@@ -103,9 +242,98 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/PacketFeature"
+        fingerprints:
+          type: array
+          items:
+            $ref: "#/components/schemas/DeviceFingerprint"
       required:
         - total_packets
         - features
+        - fingerprints
+    SaveBaselineRequest:
+      type: object
+      properties:
+        ip:
+          type: string
+        label:
+          type: string
+        fingerprint:
+          $ref: "#/components/schemas/DeviceFingerprint"
+      required:
+        - ip
+        - fingerprint
+    BaselineRecord:
+      type: object
+      properties:
+        id:
+          type: integer
+        ip:
+          type: string
+        label:
+          type: string
+          nullable: true
+        fingerprint:
+          $ref: "#/components/schemas/DeviceFingerprint"
+        created_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - ip
+        - fingerprint
+        - created_at
+    DetectionVerdict:
+      type: string
+      enum:
+        - Normal
+        - Suspicious
+        - "Possible Spoofing"
+        - "No Baseline"
+    DeviceComparison:
+      type: object
+      properties:
+        ip:
+          type: string
+        verdict:
+          $ref: "#/components/schemas/DetectionVerdict"
+        similarity_score:
+          type: number
+          nullable: true
+          description: Overall similarity percentage (0-100)
+        baseline_label:
+          type: string
+          nullable: true
+        current_fingerprint:
+          $ref: "#/components/schemas/DeviceFingerprint"
+        baseline_fingerprint:
+          nullable: true
+          allOf:
+            - $ref: "#/components/schemas/DeviceFingerprint"
+        deviations:
+          type: array
+          items:
+            type: string
+          description: Human-readable list of detected deviations
+      required:
+        - ip
+        - verdict
+        - similarity_score
+        - baseline_label
+        - current_fingerprint
+        - baseline_fingerprint
+        - deviations
+    CompareResult:
+      type: object
+      properties:
+        total_packets:
+          type: integer
+        comparisons:
+          type: array
+          items:
+            $ref: "#/components/schemas/DeviceComparison"
+      required:
+        - total_packets
+        - comparisons
     ErrorResponse:
       type: object
       properties:

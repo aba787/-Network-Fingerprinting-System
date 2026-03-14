@@ -18,9 +18,66 @@ export interface PacketFeature {
   time_delta: number;
 }
 
+export type DeviceFingerprintProtocolDistribution = { [key: string]: number };
+
+export interface DeviceFingerprint {
+  ip: string;
+  packet_count: number;
+  avg_packet_size: number;
+  std_packet_size: number;
+  avg_ttl: number;
+  std_ttl: number;
+  avg_time_delta: number;
+  std_time_delta: number;
+  protocol_distribution: DeviceFingerprintProtocolDistribution;
+  unique_destinations: number;
+}
+
 export interface AnalyzeResult {
   total_packets: number;
   features: PacketFeature[];
+  fingerprints: DeviceFingerprint[];
+}
+
+export interface SaveBaselineRequest {
+  ip: string;
+  label?: string;
+  fingerprint: DeviceFingerprint;
+}
+
+export interface BaselineRecord {
+  id: number;
+  ip: string;
+  label?: string | null;
+  fingerprint: DeviceFingerprint;
+  created_at: string;
+}
+
+export type DetectionVerdict =
+  (typeof DetectionVerdict)[keyof typeof DetectionVerdict];
+
+export const DetectionVerdict = {
+  Normal: "Normal",
+  Suspicious: "Suspicious",
+  Possible_Spoofing: "Possible Spoofing",
+  No_Baseline: "No Baseline",
+} as const;
+
+export interface DeviceComparison {
+  ip: string;
+  verdict: DetectionVerdict;
+  /** Overall similarity percentage (0-100) */
+  similarity_score: number | null;
+  baseline_label: string | null;
+  current_fingerprint: DeviceFingerprint;
+  baseline_fingerprint: DeviceFingerprint | null;
+  /** Human-readable list of detected deviations */
+  deviations: string[];
+}
+
+export interface CompareResult {
+  total_packets: number;
+  comparisons: DeviceComparison[];
 }
 
 export interface ErrorResponse {
@@ -28,5 +85,9 @@ export interface ErrorResponse {
 }
 
 export type AnalyzePcapBody = {
+  file: Blob;
+};
+
+export type CompareFingerprintBody = {
   file: Blob;
 };

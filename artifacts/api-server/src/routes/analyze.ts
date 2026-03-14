@@ -1,11 +1,9 @@
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
 import multer, { MulterError } from "multer";
-import { execFile } from "child_process";
-import { promisify } from "util";
 import path from "path";
 import fs from "fs";
 import os from "os";
-const execFileAsync = promisify(execFile);
+import { runPcapAnalysis, type ExecError } from "../lib/pcap";
 
 const router: IRouter = Router();
 
@@ -23,67 +21,6 @@ const upload = multer({
     }
   },
 });
-
-function resolveScriptPath(): string {
-  const candidates: string[] = [];
-
-  if (typeof import.meta.dirname === "string") {
-    candidates.push(
-      path.resolve(import.meta.dirname, "..", "..", "scripts", "analyze_pcap.py"),
-      path.resolve(import.meta.dirname, "..", "scripts", "analyze_pcap.py"),
-    );
-  }
-
-  if (typeof __dirname === "string") {
-    candidates.push(
-      path.resolve(__dirname, "scripts", "analyze_pcap.py"),
-      path.resolve(__dirname, "..", "scripts", "analyze_pcap.py"),
-    );
-  }
-
-  candidates.push(
-    path.resolve(process.cwd(), "artifacts", "api-server", "scripts", "analyze_pcap.py"),
-    path.resolve(process.cwd(), "scripts", "analyze_pcap.py"),
-  );
-
-  for (const candidate of candidates) {
-    if (fs.existsSync(candidate)) {
-      return candidate;
-    }
-  }
-
-  return candidates[0];
-}
-
-const SCRIPT_PATH = resolveScriptPath();
-
-interface ExecError extends Error {
-  stdout?: string;
-  stderr?: string;
-  killed?: boolean;
-  code?: number | null;
-}
-
-interface PythonErrorOutput {
-  error: string;
-}
-
-interface PacketFeature {
-  src_ip: string;
-  dst_ip: string;
-  packet_size: number;
-  ttl: number;
-  protocol: number;
-  time_delta: number;
-}
-
-function isPythonErrorOutput(value: unknown): value is PythonErrorOutput {
-  return typeof value === "object" && value !== null && "error" in value && typeof (value as PythonErrorOutput).error === "string";
-}
-
-function isPacketFeatureArray(value: unknown): value is PacketFeature[] {
-  return Array.isArray(value);
-}
 
 function handleUpload(req: Request, res: Response, next: NextFunction): void {
   upload.single("file")(req, res, (err: unknown) => {
@@ -116,45 +53,30 @@ router.post("/analyze", handleUpload, async (req, res): Promise<void> => {
   const filePath = req.file.path;
 
   try {
-    const { stdout, stderr } = await execFileAsync("python3", [SCRIPT_PATH, filePath], {
-      timeout: 60000,
-      maxBuffer: 50 * 1024 * 1024,
-    });
-
-    if (stderr) {
-      console.error("Python stderr:", stderr);
-    }
-
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(stdout);
-    } catch {
-      res.status(500).json({ error: "Failed to parse analysis output." });
-      return;
-    }
-
-    if (isPythonErrorOutput(parsed)) {
-      res.status(400).json({ error: parsed.error });
-      return;
-    }
-
-    if (!isPacketFeatureArray(parsed)) {
-      res.status(500).json({ error: "Unexpected analysis output format." });
-      return;
-    }
-
+    const result = await runPcapAnalysis(filePath);
     res.json({
-      total_packets: parsed.length,
-      features: parsed,
+      total_packets: result.features.length,
+      features: result.features,
+      fingerprints: result.fingerprints,
     });
   } catch (err: unknown) {
-    const execErr = err as ExecError;
+    const e = err as ExecError & { isUserError?: boolean };
 
-    if (execErr.stdout) {
+    if (e.isUserError) {
+      res.status(400).json({ error: e.message });
+      return;
+    }
+
+    if (e.stdout) {
       try {
-        const errorOutput: unknown = JSON.parse(execErr.stdout);
-        if (isPythonErrorOutput(errorOutput)) {
-          res.status(400).json({ error: errorOutput.error });
+        const errorOutput: unknown = JSON.parse(e.stdout);
+        if (
+          typeof errorOutput === "object" &&
+          errorOutput !== null &&
+          "error" in errorOutput &&
+          typeof (errorOutput as { error: string }).error === "string"
+        ) {
+          res.status(400).json({ error: (errorOutput as { error: string }).error });
           return;
         }
       } catch {
@@ -162,12 +84,12 @@ router.post("/analyze", handleUpload, async (req, res): Promise<void> => {
       }
     }
 
-    if (execErr.killed) {
+    if (e.killed) {
       res.status(504).json({ error: "Analysis timed out. The file may be too large." });
       return;
     }
 
-    console.error("Analysis error:", execErr.message);
+    console.error("Analysis error:", e.message);
     res.status(500).json({ error: "Analysis failed. Please ensure the file is a valid packet capture." });
   } finally {
     fs.unlink(filePath, () => {});

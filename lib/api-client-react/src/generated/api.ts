@@ -19,8 +19,12 @@ import type {
 import type {
   AnalyzePcapBody,
   AnalyzeResult,
+  BaselineRecord,
+  CompareFingerprintBody,
+  CompareResult,
   ErrorResponse,
   HealthStatus,
+  SaveBaselineRequest,
 } from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
@@ -109,7 +113,7 @@ export function useHealthCheck<
 }
 
 /**
- * Upload a pcap/pcapng file and extract packet features
+ * Upload a pcap/pcapng file and extract packet features and per-device fingerprints
  * @summary Analyze a pcap file
  */
 export const getAnalyzePcapUrl = () => {
@@ -195,4 +199,341 @@ export const useAnalyzePcap = <
   TContext
 > => {
   return useMutation(getAnalyzePcapMutationOptions(options));
+};
+
+/**
+ * Returns all saved device baseline profiles
+ * @summary List saved baselines
+ */
+export const getListBaselinesUrl = () => {
+  return `/api/fingerprint/baselines`;
+};
+
+export const listBaselines = async (
+  options?: RequestInit,
+): Promise<BaselineRecord[]> => {
+  return customFetch<BaselineRecord[]>(getListBaselinesUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListBaselinesQueryKey = () => {
+  return [`/api/fingerprint/baselines`] as const;
+};
+
+export const getListBaselinesQueryOptions = <
+  TData = Awaited<ReturnType<typeof listBaselines>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listBaselines>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListBaselinesQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listBaselines>>> = ({
+    signal,
+  }) => listBaselines({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listBaselines>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListBaselinesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listBaselines>>
+>;
+export type ListBaselinesQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List saved baselines
+ */
+
+export function useListBaselines<
+  TData = Awaited<ReturnType<typeof listBaselines>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listBaselines>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListBaselinesQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Save a device fingerprint as a named baseline for future comparison
+ * @summary Save a device baseline
+ */
+export const getSaveBaselineUrl = () => {
+  return `/api/fingerprint/baselines`;
+};
+
+export const saveBaseline = async (
+  saveBaselineRequest: SaveBaselineRequest,
+  options?: RequestInit,
+): Promise<BaselineRecord> => {
+  return customFetch<BaselineRecord>(getSaveBaselineUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(saveBaselineRequest),
+  });
+};
+
+export const getSaveBaselineMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof saveBaseline>>,
+    TError,
+    { data: BodyType<SaveBaselineRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof saveBaseline>>,
+  TError,
+  { data: BodyType<SaveBaselineRequest> },
+  TContext
+> => {
+  const mutationKey = ["saveBaseline"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof saveBaseline>>,
+    { data: BodyType<SaveBaselineRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return saveBaseline(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SaveBaselineMutationResult = NonNullable<
+  Awaited<ReturnType<typeof saveBaseline>>
+>;
+export type SaveBaselineMutationBody = BodyType<SaveBaselineRequest>;
+export type SaveBaselineMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Save a device baseline
+ */
+export const useSaveBaseline = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof saveBaseline>>,
+    TError,
+    { data: BodyType<SaveBaselineRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof saveBaseline>>,
+  TError,
+  { data: BodyType<SaveBaselineRequest> },
+  TContext
+> => {
+  return useMutation(getSaveBaselineMutationOptions(options));
+};
+
+/**
+ * Remove a saved device baseline by ID
+ * @summary Delete a baseline
+ */
+export const getDeleteBaselineUrl = (id: number) => {
+  return `/api/fingerprint/baselines/${id}`;
+};
+
+export const deleteBaseline = async (
+  id: number,
+  options?: RequestInit,
+): Promise<ErrorResponse> => {
+  return customFetch<ErrorResponse>(getDeleteBaselineUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteBaselineMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteBaseline>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteBaseline>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["deleteBaseline"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteBaseline>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteBaseline(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteBaselineMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteBaseline>>
+>;
+
+export type DeleteBaselineMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Delete a baseline
+ */
+export const useDeleteBaseline = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteBaseline>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteBaseline>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDeleteBaselineMutationOptions(options));
+};
+
+/**
+ * Upload a pcap/pcapng file, build fingerprints, and compare each device against its saved baseline to detect anomalies
+ * @summary Compare pcap against saved baselines
+ */
+export const getCompareFingerprintUrl = () => {
+  return `/api/fingerprint/compare`;
+};
+
+export const compareFingerprint = async (
+  compareFingerprintBody: CompareFingerprintBody,
+  options?: RequestInit,
+): Promise<CompareResult> => {
+  const formData = new FormData();
+  formData.append(`file`, compareFingerprintBody.file);
+
+  return customFetch<CompareResult>(getCompareFingerprintUrl(), {
+    ...options,
+    method: "POST",
+    body: formData,
+  });
+};
+
+export const getCompareFingerprintMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof compareFingerprint>>,
+    TError,
+    { data: BodyType<CompareFingerprintBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof compareFingerprint>>,
+  TError,
+  { data: BodyType<CompareFingerprintBody> },
+  TContext
+> => {
+  const mutationKey = ["compareFingerprint"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof compareFingerprint>>,
+    { data: BodyType<CompareFingerprintBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return compareFingerprint(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CompareFingerprintMutationResult = NonNullable<
+  Awaited<ReturnType<typeof compareFingerprint>>
+>;
+export type CompareFingerprintMutationBody = BodyType<CompareFingerprintBody>;
+export type CompareFingerprintMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Compare pcap against saved baselines
+ */
+export const useCompareFingerprint = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof compareFingerprint>>,
+    TError,
+    { data: BodyType<CompareFingerprintBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof compareFingerprint>>,
+  TError,
+  { data: BodyType<CompareFingerprintBody> },
+  TContext
+> => {
+  return useMutation(getCompareFingerprintMutationOptions(options));
 };
